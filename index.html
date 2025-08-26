@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم خطة التعلم المتكاملة (بتقييم وتخطيط آلي)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="خارطة التعلم">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    <link rel="apple-touch-startup-image" href="/icons/icon-512x512.png">
+    <!-- Chosen Palette: Warm Neutrals (Stone, Teal, Amber) -->
+    <!-- Application Structure Plan: A single-page dashboard designed for comprehensive learning tracking with AI-powered monthly planning and automated weekly reviews. It features an interactive daily checklist with direct resource links and persistent completion, a dynamic doughnut chart visualizing daily time allocation and real-time completion. Sections for consolidated notes (now as individual entries with add/delete/link detection) and an English vocabulary repository, all with persistent storage. New sections display historical daily/weekly/monthly completion logs, an "AI Monthly Evaluation & Proposed Plan" (LLM-driven), and a new "Weekly Review" section. This structure provides robust daily management, intelligent long-term tracking, personalized content, and evolving plan adjustments. Resources section now includes descriptions. Added Skills & Goals section, dynamic motivational messages, and custom alert modal. Now configured as a Progressive Web App (PWA). -->
+    <!-- Visualization & Content Choices: Daily Tasks -> Goal: Inform/Track/Navigate -> Viz: Interactive HTML list with embedded resource links & Persistent Checkboxes -> Interaction: Click to mark complete (saved), click link to navigate -> Justification: Direct task management and resource access, reinforces habit formation. Daily Completion Chart -> Goal: Inform/Visualize -> Viz: Chart.js Doughnut Chart -> Interaction: Dynamic update on task completion, hover for details -> Justification: Quick visual feedback on daily progress. Historical Logs (Daily, Weekly, Monthly) -> Goal: Analyze/Reflect -> Viz: HTML Lists -> Justification: Provides long-term perspective on learning trends. Notes (new design) -> Goal: Reflect/Organize/Learn -> Viz: Input textarea, Add button, List of deletable entries with timestamp and link detection -> Interaction: Type, Add, Delete -> Justification: Enhanced note-taking with better organization and control. Vocabulary -> Goal: Organize/Learn -> Viz: Input & Display Div/Cards -> Interaction: Type, Save, Add, Delete -> Justification: Personalized learning log and language tool. AI Monthly Evaluation -> Goal: Evaluate/Recommend/Update -> Viz: Dynamic Text & HTML list (generated tasks) with Loading Indicator and Apply button -> Interaction: LLM API call for plan generation, User click to apply new plan -> Justification: Automates plan adjustment based on performance. Weekly Review -> Goal: Summarize/Reflect -> Viz: Dynamic Text in dedicated section with hide button -> Interaction: Display on weekly trigger, user hides -> Justification: Provides regular performance feedback and encourages reflection. Skills & Goals -> Goal: Plan/Track personal development -> Viz: Input fields, select dropdowns, lists with delete buttons -> Interaction: Add skill, set proficiency, save goals, delete skill -> Justification: User-defined learning path and self-assessment. Motivational Messages -> Goal: Engage/Encourage -> Viz: Dynamic text -> Interaction: Automatic display based on progress -> Justification: Positive reinforcement. Custom Alert Modal -> Goal: Improve UX for notifications -> Viz: Styled modal overlay -> Interaction: Click OK to dismiss -> Justification: Non-intrusive feedback. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: auto;
+            min-height: 300px;
+        }
+        .task-item input:checked + label {
+            text-decoration: line-through;
+            color: #9ca3af;
+        }
+        .task-item input:checked + label .task-text {
+            opacity: 0.6;
+        }
+        .task-item .icon {
+            transition: transform 0.2s ease-in-out;
+        }
+        .task-item input:checked + label .icon {
+            transform: scale(1.2);
+        }
+        .reset-indicator {
+            color: #ef4444; /* red-500 */
+            font-size: 0.875rem; /* text-sm */
+            margin-top: 0.5rem; /* mt-2 */
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #10b981; /* Teal */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
+
+        <header class="text-center mb-10">
+            <h1 class="text-3xl sm:text-4xl font-bold text-teal-700">لوحة تحكم خطة التعلم المتكاملة</h1>
+            <p class="mt-2 text-lg text-stone-600">رفيقك اليومي لتتبع التقدم، تدوين الملاحظات، وتعزيز مفرداتك الإنجليزية</p>
+        </header>
+
+        <main>
+            <section id="daily-dashboard" class="grid grid-cols-1 lg:grid-cols-5 gap-8 mb-12">
+                
+                <div class="lg:col-span-3 bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-2xl font-bold mb-4 text-teal-800 border-b-2 border-teal-100 pb-2">مهامك اليومية (السبت - الخميس)</h2>
+                    <p class="text-stone-600 mb-6">هذه هي مهامك الأساسية التي تبني مهاراتك بشكل مستمر. حاول إكمالها كل يوم لتحقيق أفضل تقدم. الضغط على المهمة يعني إنجازها.</p>
+                    <div id="daily-tasks-list" class="space-y-4">
+                    </div>
+                    <div id="daily-completion-summary" class="mt-6 text-center text-lg font-semibold text-stone-700">
+                        نسبة إنجاز اليوم: <span id="daily-percentage" class="text-teal-600">0%</span>
+                        <p id="motivational-message" class="text-sm mt-2 text-amber-600"></p>
+                    </div>
+                    <div id="reset-status" class="text-center text-sm reset-indicator hidden">
+                        تمت إعادة ضبط المهام لليوم الجديد.
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg flex flex-col justify-center items-center">
+                    <h2 class="text-2xl font-bold mb-4 text-center text-teal-800">توزيع وقت التعلم اليومي</h2>
+                    <p class="text-stone-600 mb-4 text-center text-sm">نظرة سريعة على كيفية توزيع ساعات تعلمك اليومية على مختلف المهارات.</p>
+                    <div class="chart-container">
+                        <canvas id="timeAllocationChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section id="weekly-review-section" class="mb-12 hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-3xl font-bold text-center mb-8 text-teal-700">مراجعة الأسبوع الماضي</h2>
+                    <div id="weekly-review-summary-content" class="text-center text-stone-700 mb-6">
+                        <p class="text-xl font-semibold mb-2">جارٍ تحميل ملخص الأسبوع...</p>
+                        <div class="loading-spinner mx-auto"></div>
+                    </div>
+                    <button id="hide-weekly-review" class="w-full bg-amber-600 text-white py-2 px-4 rounded-lg hover:bg-amber-700 transition-colors duration-300 mt-4">إغلاق المراجعة الأسبوعية</button>
+                </div>
+            </section>
+
+            <section id="ai-monthly-plan" class="mb-12 hidden">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-3xl font-bold text-center mb-8 text-teal-700">التقييم الشهري والخطة المقترحة</h2>
+                    <div id="monthly-evaluation-summary" class="text-center text-stone-700 mb-6">
+                        <p class="text-xl font-semibold mb-2">جارٍ تقييم الشهر السابق...</p>
+                        <div class="loading-spinner mx-auto"></div>
+                    </div>
+                    <div id="suggested-plan-display" class="space-y-4 hidden">
+                        <h3 class="text-2xl font-bold mb-4 text-amber-700 border-b-2 border-amber-100 pb-2">الخطة اليومية المقترحة للشهر القادم:</h3>
+                        <div id="suggested-daily-tasks-list" class="space-y-4">
+                            <!-- Suggested tasks will be loaded here -->
+                        </div>
+                        <button id="apply-new-monthly-plan" class="w-full bg-teal-600 text-white py-3 px-4 rounded-lg hover:bg-teal-700 transition-colors duration-300 mt-6 text-lg">تطبيق الخطة الشهرية الجديدة</button>
+                    </div>
+                    <div id="ai-plan-error" class="text-center text-red-600 mt-4 hidden">
+                        عذراً، حدث خطأ أثناء جلب الخطة المقترحة. الرجاء المحاولة لاحقاً.
+                    </div>
+                </div>
+            </section>
+
+            <section id="weekly-monthly-plans" class="mb-12">
+                <h2 class="text-3xl font-bold text-center mb-8 text-teal-700">الخطة الأسبوعية والشهرية</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h3 class="text-2xl font-bold mb-4 text-amber-700">الخطة الأسبوعية (يوم الجمعة)</h3>
+                        <p class="text-stone-600 mb-6">يوم الجمعة مخصص للراحة، المراجعة، وتطبيق ما تعلمته في مشاريع أكبر لترسيخ المفاهيم.</p>
+                        <ul id="weekly-tasks-list" class="space-y-4">
+                        </ul>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h3 class="text-2xl font-bold mb-4 text-amber-700">الخطة الشهرية</h3>
+                        <p class="text-stone-600 mb-6">في نهاية كل شهر، خذ وقتاً لتقييم تقدمك وتحديد أهدافك الجديدة. هذا يساعدك على البقاء في المسار الصحيح.</p>
+                        <ul id="monthly-tasks-list" class="space-y-4">
+                        </ul>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="historical-progress" class="mb-12">
+                <h2 class="text-3xl font-bold text-center mb-8 text-teal-700">سجل التقدم التاريخي</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h3 class="text-2xl font-bold mb-4 text-teal-800">التقدم اليومي</h3>
+                        <div id="daily-progress-log" class="space-y-2">
+                            <p class="text-stone-500">لا يوجد سجل يومي بعد.</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h3 class="text-2xl font-bold mb-4 text-teal-800">التقدم الأسبوعي</h3>
+                        <div id="weekly-progress-log" class="space-y-2">
+                            <p class="text-stone-500">لا يوجد سجل أسبوعي بعد.</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-lg">
+                        <h3 class="text-2xl font-bold mb-4 text-teal-800">التقدم الشهري</h3>
+                        <div id="monthly-progress-log" class="space-y-2">
+                            <p class="text-stone-500">لا يوجد سجل شهري بعد.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- NEW: Skills and Goals Section -->
+            <section id="skills-goals-section" class="mb-12">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-3xl font-bold text-center mb-8 text-teal-700">مهاراتي وأهدافي 🌟</h2>
+                    <p class="text-stone-600 mb-6 text-center max-w-3xl mx-auto text-sm">حدد المهارات التي تتعلمها وأهدافك طويلة المدى لتتبع تقدمك.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- My Skills -->
+                        <div>
+                            <h3 class="text-2xl font-bold mb-4 text-amber-700 border-b-2 border-amber-100 pb-2">المهارات التي أتعلمها</h3>
+                            <div class="flex flex-wrap gap-2 mb-4">
+                                <input type="text" id="new-skill-input" class="flex-grow p-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="أضف مهارة جديدة (مثال: React Hooks)">
+                                <select id="new-skill-proficiency" class="p-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-200">
+                                    <option value="Not Started">لم أبدأ بعد</option>
+                                    <option value="Learning">أتعلم</option>
+                                    <option value="Proficient">متقن</option>
+                                </select>
+                                <button id="add-skill-btn" class="bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 transition-colors duration-300">أضف مهارة</button>
+                            </div>
+                            <div id="skills-list-display" class="space-y-3">
+                                <p class="text-stone-500 text-center">لا توجد مهارات مضافة بعد.</p>
+                            </div>
+                        </div>
+
+                        <!-- My Long-Term Goals -->
+                        <div>
+                            <h3 class="text-2xl font-bold mb-4 text-amber-700 border-b-2 border-amber-100 pb-2">أهدافي طويلة المدى</h3>
+                            <textarea id="long-term-goals-input" class="w-full p-3 border border-stone-300 rounded-lg mb-4 h-32 focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="اكتب أهدافك الكبرى هنا... (مثال: إتقان تطوير الويب الأمامي)"></textarea>
+                            <button id="save-long-term-goals-btn" class="w-full bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 transition-colors duration-300">حفظ الأهداف</button>
+                            <div id="long-term-goals-display" class="mt-4 p-3 bg-stone-50 rounded-lg text-stone-700 whitespace-pre-wrap border border-stone-200 min-h-[50px]">
+                                <p class="text-stone-500">لا توجد أهداف محفوظة بعد.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="notes-section" class="mb-12">
+                <div class="bg-white p-6 rounded-2xl shadow-lg">
+                    <h2 class="text-3xl font-bold text-center mb-8 text-teal-700">دفتر الملاحظات 📔</h2>
+                    <p class="text-stone-600 mb-4 text-sm text-center">أضف ملاحظاتك الجديدة هنا، وستبقى محفوظة في سجلاتك.</p>
+                    <textarea id="new-note-input" class="w-full p-3 border border-stone-300 rounded-lg mb-4 h-32 focus:outline-none focus:ring-2 focus:ring-teal-200" placeholder="اكتب ملاحظة جديدة هنا... (سيتم اكتشاف الروابط)"></textarea>
+                    <button id="add-new-note-btn" class="w-full bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 transition-colors duration-300 mb-6">إضافة ملاحظة</button>
+                    
+                    <h3 class="text-2xl font-bold mb-4 text-amber-700 border-b-2 border-amber-100 pb-2">سجل الملاحظات المحفوظة</h3>
+                    <div id="all-notes-display" class="space-y-4 max-h-96 overflow-y-auto">
+                        <!-- Individual notes will be rendered here -->
+                        <p class="text-stone-500 text-center">لا توجد ملاحظات محفوظة بعد.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="vocabulary-section" class="mb-12 bg-white p-6 rounded-2xl shadow-lg">
+                <h2 class="text-3xl font-bold text-center mb-8 text-teal-700">مستودع الكلمات الإنجليزية 🇬🇧</h2>
+                <p class="text-stone-600 mb-6 text-center max-w-3xl mx-auto text-sm">أضف الكلمات الإنجليزية الجديدة التي تتعلمها هنا لتتمكن من مراجعتها لاحقًا.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div>
+                        <label for="vocab-word" class="block text-sm font-medium text-stone-700 mb-1">الكلمة الإنجليزية</label>
+                        <input type="text" id="vocab-word" class="w-full p-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200" placeholder="مثال: Algorithm">
+                    </div>
+                    <div>
+                        <label for="vocab-meaning" class="block text-sm font-medium text-stone-700 mb-1">المعنى</label>
+                        <input type="text" id="vocab-meaning" class="w-full p-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200" placeholder="مثال: خوارزمية">
+                    </div>
+                    <div>
+                        <label for="vocab-notes" class="block text-sm font-medium text-stone-700 mb-1">ملاحظات (اختياري)</label>
+                        <input type="text" id="vocab-notes" class="w-full p-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-200" placeholder="مثال: تستخدم لحل المشكلات">
+                    </div>
+                </div>
+                <button id="add-vocab" class="w-full bg-amber-600 text-white py-2 px-4 rounded-lg hover:bg-amber-700 transition-colors duration-300 mb-8">إضافة كلمة جديدة</button>
+                
+                <div id="vocabulary-display" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Vocabulary items will be rendered here -->
+                </div>
+            </section>
+
+            <section id="resources" class="mb-12">
+                <h2 class="text-3xl font-bold text-center mb-8 text-teal-700">بنك الموارد والأدوات</h2>
+                <p class="text-stone-600 mb-8 text-center max-w-3xl mx-auto">كل ما تحتاجه في مكان واحد. هذه هي الأدوات والمصادر التي ستعتمد عليها في رحلتك التعليمية.</p>
+                <div id="resources-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                </div>
+            </section>
+
+        </main>
+
+        <footer class="text-center mt-12 py-6 border-t border-stone-200">
+            <p class="text-stone-500">"الاستمرارية هي مفتاح النجاح. خطوة صغيرة كل يوم تصنع فارقاً كبيراً."</p>
+        </footer>
+
+    </div>
+
+    <!-- Custom Alert Modal HTML -->
+    <div id="custom-alert-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+            <h3 id="custom-alert-title" class="text-xl font-bold text-teal-800 mb-4"></h3>
+            <p id="custom-alert-message" class="text-stone-700 mb-6"></p>
+            <button id="custom-alert-ok-btn" class="bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 transition-colors duration-300">حسناً</button>
+        </div>
+    </div>
+
+    <script>
+        // Custom Alert Function
+        function customAlert(title, message) {
+            const modal = document.getElementById('custom-alert-modal');
+            document.getElementById('custom-alert-title').textContent = title;
+            document.getElementById('custom-alert-message').textContent = message;
+            modal.classList.remove('hidden');
+            document.getElementById('custom-alert-ok-btn').onclick = () => {
+                modal.classList.add('hidden');
+            };
+        }
+
+        // Default Learning Data - Used if no dynamic daily tasks are stored
+        const defaultDailyTasks = [
+            { id: 'task-english-vocab', priority: 1, task: 'اللغة الإنجليزية: تدريب كلمات وقواعد', duration: 30, icon: '🇬🇧', resources: [{ name: 'Duolingo', url: 'https://www.duolingo.com/' }, { name: 'Anki', url: 'https://apps.ankiweb.net/' }] },
+            { id: 'task-cs50', priority: 2, task: 'أساسيات علوم الحاسوب (CS50)', duration: 30, icon: '💻', resources: [{ name: 'CS50 Harvard', url: 'https://cs50.harvard.edu/x/2024/' }] },
+            { id: 'task-python-basics', priority: 3, task: 'أساسيات البرمجة (Python)', duration: 60, icon: '🐍', resources: [{ name: 'SoloLearn', url: 'https://www.sololearn.com/Course/Python/' }, { name: 'Programming Hub', url: 'https://programminghub.io/' }] },
+            { id: 'task-practical-exercises', priority: 4, task: 'تطبيق عملي: حل مشكلات/تمارين بسيطة', duration: 30, icon: '⚙️', resources: [{ name: 'HackerRank', url: 'https://www.hackerrank.com/domains/tutorials/10-days-of-python' }, { name: 'W3Schools Exercises', url: 'https://www.w3schools.com/html/html_exercises.asp' }, { name: 'LeetCode', url: 'https://leetcode.com/problemset/?difficulty=EASY' }] },
+            { id: 'task-english-immersion', priority: 5, task: 'الإنجليزية المدمجة: قراءة/استماع تقني', duration: 45, icon: '🎧', resources: [{ name: 'FreeCodeCamp (YouTube)', url: 'https://www.youtube.com/@freecodecamp' }, { name: 'Fireship (YouTube)', url: 'https://www.youtube.com/@Fireship' }] }
+        ];
+
+        // Global state for daily tasks and progress
+        let learningDataDailyTasks = loadFromLocalStorage('learningDataDailyTasks', defaultDailyTasks);
+
+        // Define the static learningData object for weekly/monthly tasks and static resources
+        const learningData = {
+            weeklyTasks: [
+                { task: 'تطوير تطبيق بسيط لإدارة الملاحظات بـ Python و Flask', notes: 'إنشاء تطبيق ويب بسيط لحفظ وتعديل وحذف الملاحظات. يشمل واجهة مستخدم (HTML/CSS) وواجهة خلفية بـ Flask، مع تخزين البيانات محلياً (مثلاً في ملف نصي أو قاعدة بيانات SQLite بسيطة).', icon: '🚀', resources: [{name: 'Flask Tutorial', url: 'https://flask.palletsprojects.com/en/2.0.x/quickstart/'}, {name: 'SQLite Tutorial', url: 'https://www.sqlitetutorial.net/'}, {name: 'HTML/CSS Basics', url: 'https://www.w3schools.com/html/'}] },
+                { task: 'تحديث GitHub', notes: 'تعلم أساسيات Git وGitHub لرفع وحفظ مشاريعك.', icon: '📂', resources: [{name: 'Git & GitHub Tutorial (FreeCodeCamp)', url: 'https://www.youtube.com/watch?v=RGOj5yH7evk'}] },
+                { task: 'مراجعة الأسبوع وتقييم الأهداف', notes: 'مراجعة سريعة للملاحظات والمهام.', icon: '📊' },
+                { task: 'راحة تامة واستجمام', notes: 'الراحة لا تقل أهمية عن التعلم.', icon: '🧘' }
+            ],
+            monthlyTasks: [
+                { task: 'تقييم الأداء الشهري', notes: 'مراجعة الإنجازات وتحديد التحديات.', icon: '📈' },
+                { task: 'تحديد أهداف الشهر القادم', notes: 'وضع أهداف ذكية ومحددة للشهر الجديد.', icon: '🎯' },
+                { task: 'تحديث خطة التعلم', notes: 'تعديل الخطة لتتناسب مع الأهداف الجديدة.', icon: '🔄' }
+            ],
+            resources: [ // This list is for the general "Resources Bank" at the bottom
+                { name: 'Duolingo', url: 'https://www.duolingo.com/', category: 'English', description: 'تطبيق لتعلم اللغات يقدم دروسًا تفاعلية وممتعة.' },
+                { name: 'Anki', url: 'https://apps.ankiweb.net/', category: 'English', description: 'برنامج البطاقات التعليمية للمراجعة المتباعدة، ممتاز لحفظ الكلمات والمفاهيم.' },
+                { name: 'CS50 Harvard', url: 'https://cs50.harvard.edu/x/2024/', category: 'CS', description: 'دورة تمهيدية مجانية من جامعة هارفارد لعلوم الحاسوب.' },
+                { name: 'SoloLearn', url: 'https://www.sololearn.com/', category: 'Code', description: 'منصة لتعلم البرمجة من الهاتف، تقدم دورات بلغات متعددة.' },
+                { name: 'Programming Hub', url: 'https://programminghub.io/', category: 'Code', description: 'تطبيق لتعلم البرمجة بلغات مختلفة مع تمارين عملية.' },
+                { name: 'VS Code', url: 'https://code.visualstudio.com/', category: 'Tool', description: 'محرر أكواد مجاني وقوي من مايكروسوفت، يدعم العديد من اللغات والإضافات.' },
+                { name: 'HackerRank', url: 'https://www.hackerrank.com/domains/tutorials/10-days-of-python', category: 'Practice', description: 'منصة لحل تحديات البرمجة لتقوية مهاراتك في الخوارزميات وهياكل البيانات.' },
+                { name: 'W3Schools', url: 'https://www.w3schools.com/html/html_exercises.asp', category: 'Practice', description: 'مرجع شامل لتقنيات الويب (HTML, CSS, JavaScript) مع أمثلة وتمارين.' },
+                { name: 'LeetCode', url: 'https://leetcode.com/problemset/?difficulty=EASY', category: 'Practice', description: 'منصة لحل مشكلات البرمجة الصعبة، ممتازة للتحضير لمقابلات العمل التقنية.' },
+                { name: 'FreeCodeCamp', url: 'https://www.youtube.com/@freecodecamp', category: 'Media', description: 'قناة يوتيوب تقدم دورات كاملة في البرمجة وتطوير الويب مجاناً.' },
+                { name: 'Fireship', url: 'https://www.youtube.com/@Fireship', category: 'Media', description: 'قناة يوتيوب تقدم شروحات سريعة ومختصرة لتقنيات الويب الحديثة.' },
+                { name: 'GitHub', url: 'https://github.com/', category: 'Tool', description: 'منصة استضافة المشاريع البرمجية باستخدام Git، ضرورية للعمل التعاوني وحفظ الكود.' },
+                { name: 'Notion', url: 'https://www.notion.so/', category: 'Tool', description: 'أداة شاملة لتنظيم الملاحظات، المهام، المشاريع، وقواعد البيانات.' },
+                { name: 'The Odin Project', url: 'https://www.odinproject.com/', category: 'Practice', description: 'مسار تعليمي مجاني ومفتوح المصدر لتطوير الويب من البداية حتى الاحتراف.' },
+                { name: 'Git', url: 'https://git-scm.com/downloads', category: 'Tool', description: 'نظام للتحكم في الإصدارات، أساسي لتتبع التغييرات في الكود والتعاون.' },
+                // --- Additional resources requested by the user ---
+                { name: 'Codecademy', url: 'https://www.codecademy.com/', category: 'Code', description: 'منصة تفاعلية لتعلم البرمجة من خلال تمارين مباشرة ومشاريع.' },
+                { name: 'Khan Academy', url: 'https://www.khanacademy.org/', category: 'CS', description: 'مكتبة ضخمة من الدروس المجانية في الرياضيات، العلوم، علوم الحاسوب وغيرها.' },
+                { name: 'MDN Web Docs', url: 'https://developer.mozilla.org/en-US/', category: 'Code', description: 'وثائق شاملة وموثوقة لتقنيات الويب (HTML, CSS, JavaScript) من Mozilla.' },
+                { name: 'Stack Overflow', url: 'https://stackoverflow.com/', category: 'Tool', description: 'أكبر مجتمع للمبرمجين لطرح الأسئلة والحصول على إجابات حول مشاكل البرمجة.' },
+                { name: 'GeeksforGeeks', url: 'https://www.geeksforgeeks.org/', category: 'CS', description: 'مورد رائع لعلوم الحاسوب والخوارزميات وهياكل البيانات وتحضير المقابلات.' },
+                { name: 'Learn Python the Hard Way', url: 'https://learnpythonthehardway.org/python3/', category: 'Code', description: 'كتاب مجاني لتعلم بايثون بطريقة عملية قائمة على التمارين المكثفة.' },
+                { name: 'YouTube: Traversy Media', url: 'https://www.youtube.com/@TraversyMedia', category: 'Media', description: 'قناة يوتيوب شهيرة لتعليم تطوير الويب بمختلف التقنيات.' },
+                { name: 'YouTube: The Net Ninja', url: 'https://www.youtube.com/@TheNetNinja', category: 'Media', description: 'قناة يوتيوب تقدم دروسًا عالية الجودة في تطوير الويب الحديثة.' },
+                { name: 'Grammarly', url: 'https://www.grammarly.com/', category: 'English', description: 'أداة لمساعدتك في تحسين قواعد اللغة الإنجليزية، التدقيق الإملائي، والأسلوب.' },
+                { name: 'Coursera', url: 'https://www.coursera.org/', category: 'CS', description: 'منصة لتقديم دورات جامعية وشهادات مهنية من جامعات وشركات عالمية.' },
+                { name: 'edX', url: 'https://www.edx.org/', category: 'CS', description: 'منصة مماثلة لـ Coursera تقدم دورات من أفضل الجامعات في العالم.' },
+                { name: 'Medium', url: 'https://medium.com/', category: 'Media', description: 'منصة للمقالات حيث يكتب الخبراء والمطورون عن مواضيع تقنية وغير تقنية.' },
+                { name: 'DeepL Translate', url: 'https://www.deepl.com/translator', category: 'Tool', description: 'خدمة ترجمة آلية عالية الجودة، مفيدة لفهم النصوص الإنجليزية المعقدة.' },
+                { name: 'Roadmap.sh', url: 'https://roadmap.sh/', category: 'Practice', description: 'مسارات تعليمية تفاعلية للمطورين لتعلم مختلف التقنيات والمسارات المهنية.' },
+                { name: 'Pluralsight', url: 'https://www.pluralsight.com/', category: 'Code', description: 'منصة تعليمية تقدم دورات عالية الجودة في التكنولوجيا والبرمجة.' },
+                { name: 'LinkedIn Learning', url: 'https://www.linkedin.com/learning/', category: 'CS', description: 'مكتبة واسعة من الدورات التدريبية في مجالات التقنية والأعمال والإبداع.' },
+                { name: 'Udemy', url: 'https://www.udemy.com/', category: 'Code', description: 'منصة ضخمة للدورات عبر الإنترنت في جميع المجالات، بما في ذلك البرمجة واللغات.' },
+                { name: 'Eloquent JavaScript', url: 'https://eloquentjavascript.net/', category: 'Code', description: 'كتاب مجاني وشامل لتعلم JavaScript من الأساسيات حتى المفاهيم المتقدمة.' },
+                { name: 'Real Python', url: 'https://realpython.com/', category: 'Code', description: 'موقع يقدم دروسًا ومقالات عالية الجودة حول Python، مناسب للمبتدئين والمتقدمين.' },
+                { name: 'The Art of Electronics', url: 'https://artofelectronics.net/', category: 'CS', description: 'كتاب كلاسيكي للمهتمين بالإلكترونيات والدوائر الكهربائية، مورد قيم لأساسيات الأجهزة.' },
+                { name: 'DataCamp', url: 'https://www.datacamp.com/', category: 'Code', description: 'منصة تفاعلية لتعلم علم البيانات والبرمجة (Python, R, SQL) من خلال تمارين عملية.' },
+                { name: 'Tableau Public', url: 'https://public.tableau.com/en-us/', category: 'Tool', description: 'أداة مجانية لتصور البيانات وإنشاء لوحات معلومات تفاعلية.' },
+                { name: 'Visual Studio Community', url: 'https://visualstudio.microsoft.com/vs/community/', category: 'Tool', description: 'بيئة تطوير متكاملة (IDE) مجانية من مايكروسوفت لتطوير تطبيقات Windows وويب.' },
+                { name: 'Jira', url: 'https://www.atlassian.com/software/jira', category: 'Tool', description: 'أداة لإدارة المشاريع وتتبع المهام، تستخدم على نطاق واسع في فرق تطوير البرمجيات.' },
+                { name: 'Trello', url: 'https://trello.com/', category: 'Tool', description: 'أداة بسيطة ومرئية لإدارة المشاريع وتنظيم المهام باستخدام لوحات كانبان.' },
+                { name: 'Asana', url: 'https://asana.com/', category: 'Tool', description: 'منصة لإدارة العمل والتعاون الجماعي لتنظيم المهام والمشاريع.' },
+                { name: 'Zapier', url: 'https://zapier.com/', category: 'Tool', description: 'أداة لأتمتة المهام وربط التطبيقات المختلفة ببعضها البعض.' },
+                { name: 'IFTTT', url: 'https://ifttt.com/', category: 'Tool', description: 'منصة لأتمتة المهام بين تطبيقات الويب والأجهزة الذكية ("If This Then That").' },
+                { name: 'ChatGPT', url: 'https://chat.openai.com/', category: 'Tool', description: 'نموذج لغة كبير من OpenAI، يمكن استخدامه للمساعدة في البرمجة، الكتابة، البحث، وغيرها.' },
+                { name: 'Google Bard', url: 'https://bard.google.com/', category: 'Tool', description: 'نموذج لغة كبير من Google، منافس لـ ChatGPT ويقدم إمكانيات مشابهة.' },
+                { name: 'Gemini', url: 'https://gemini.google.com/', category: 'Tool', description: 'نموذج لغة كبير من Google، أكثر تطورًا من Bard، ويوفر قدرات متعددة الوسائط.' },
+                { name: 'Coursera (Arabic)', url: 'https://ar.coursera.org/', category: 'CS', description: 'نسخة Coursera باللغة العربية، تقدم دورات وشهادات من جامعات وشركات عالمية.' },
+                { name: 'Edraak', url: 'https://www.edraak.org/', category: 'CS', description: 'منصة عربية للمساقات الجماعية مفتوحة المصادر (MOOCs) بالشراكة مع EdX.' },
+                { name: 'Rwaq', url: 'https://www.rwaq.org/', category: 'CS', description: 'منصة تعليمية عربية تقدم مواد تعليمية مجانية عالية الجودة في مختلف التخصصات.' },
+                { name: 'Noon Academy', url: 'https://www.noonacademy.com/en-ae/', category: 'CS', description: 'منصة تعليمية سعودية تقدم دروسًا واختبارات تفاعلية للطلاب.' },
+                { name: 'Ted-Ed', url: 'https://ed.ted.com/', category: 'Media', description: 'دروس متحركة قصيرة ومبتكرة تغطي مجموعة واسعة من المواضيع التعليمية.' },
+                { name: 'CrashCourse', url: 'https://www.youtube.com/@crashcourse', category: 'Media', description: 'قناة يوتيوب تقدم سلاسل فيديو سريعة وغنية بالمعلومات حول مختلف المواضيع الأكاديمية.' },
+                { name: 'Veritasium', url: 'https://www.youtube.com/@veritasium', category: 'Media', description: 'قناة يوتيوب تستكشف مفاهيم علمية وفيزيائية بطرق شيقة وتجارب.' },
+                { name: '3Blue1Brown', url: 'https://www.youtube.com/@3blue1brown', category: 'Media', description: 'قناة يوتيوب لشرح الرياضيات المتقدمة وتصورها بطريقة بصرية رائعة.' },
+                { name: 'Lex Fridman Podcast', url: 'https://www.youtube.com/@lexfridman', category: 'Media', description: 'بودكاست يقدم مقابلات معمقة مع علماء ومهندسين ومفكرين في مجالات الذكاء الاصطناعي والتكنولوجيا.' },
+                { name: 'Fluent in 3 Months', url: 'https://www.fluentin3months.com/', category: 'English', description: 'موقع يقدم نصائح وموارد لتعلم اللغات بسرعة وفعالية.' },
+                { name: 'BBC Learning English', url: 'https://www.bbc.co.uk/learningenglish/', category: 'English', description: 'موارد مجانية لتعلم اللغة الإنجليزية من BBC، تشمل القواعد، المفردات، والاستماع.' },
+                { name: 'Breaking News English', url: 'https://breakingnewsenglish.com/', category: 'English', description: 'دروس لغة إنجليزية مجانية مبنية على الأخبار الحديثة، مثالية لتحسين القراءة والاستماع.' },
+                { name: 'ESL Pod', url: 'https://www.eslpod.com/', category: 'English', description: 'بودكاست لتعلم اللغة الإنجليزية كلغة ثانية، يقدم حوارات ومفردات مشروحة بوضوح.' }
+            ]
+        };
+
+
+        let currentDailyProgress = {
+            date: null, // YYYY-MM-DD
+            tasks: learningDataDailyTasks.map(task => ({ id: task.id, completed: false })),
+            completionPercentage: 0,
+            completedCount: 0,
+            totalCount: learningDataDailyTasks.length
+        };
+
+        // History logs
+        let dailyCompletionHistory = []; // [{ date: 'YYYY-MM-DD', percentage: 75, completedCount: 3, totalCount: 4 }]
+        let weeklyCompletionHistory = []; // [{ week: 'YYYY-WXX', startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD', avgPercentage: 80, dailyLogs: [...] }]
+        let monthlyCompletionHistory = []; // [{ month: 'YYYY-MM', avgPercentage: 85, weeklyLogs: [...] }]
+        let yearlyCompletionHistory = []; // [{ year: 'YYYY', avgPercentage: 90, monthlyLogs: [...] }]
+
+        // Skills and Goals State
+        let mySkills = loadFromLocalStorage('mySkills', []); // [{ id: 'uuid', name: 'Python OOP', proficiency: 'Learning' }]
+        let longTermGoals = loadFromLocalStorage('longTermGoals', ''); // String content
+
+        // LLM related state
+        let llmGeneratedDailyTasks = [];
+        let isGeneratingPlan = false;
+
+        // Chart.js instance
+        let timeAllocationChartInstance;
+
+        // --- Helper Functions for Date & LocalStorage ---
+
+        // Get current date string in YYYY-MM-DD format
+        function getTodayDateString(date = new Date()) {
+            return date.toISOString().split('T')[0];
+        }
+
+        // Get start of the current week (Sunday)
+        function getStartOfWeek(date = new Date()) {
+            const d = new Date(date);
+            const day = d.getDay(); // 0 for Sunday, 1 for Monday, etc.
+            const diff = d.getDate() - day; // adjust to Sunday
+            d.setDate(diff);
+            d.setHours(0, 0, 0, 0);
+            return d;
+        }
+
+        // Get week number (ISO week date, 1-52 or 53)
+        // From: https://stackoverflow.com/questions/6117814/get-week-of-year-in-javascript-like-in-php
+        function getWeekNumber(d) {
+            d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+            return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+        }
+
+        // Get month and year string (YYYY-MM)
+        function getMonthYearString(date = new Date()) {
+            return date.toISOString().slice(0, 7);
+        }
+
+        // Get year string (YYYY)
+        function getYearString(date = new Date()) {
+            return date.getFullYear().toString();
+        }
+
+        // Load data from localStorage
+        function loadFromLocalStorage(key, defaultValue) {
+            if (typeof localStorage !== 'undefined') {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : defaultValue;
+            }
+            return defaultValue;
+        }
+
+        // Save data to localStorage
+        function saveToLocalStorage(key, data) {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem(key, JSON.stringify(data));
+            } else {
+                console.warn('localStorage is not available.');
+            }
+        }
+
+        // --- Core Logic for Daily Reset and Aggregation ---
+
+        function calculateDailyCompletion() {
+            const completed = currentDailyProgress.tasks.filter(t => t.completed).length;
+            const total = currentDailyProgress.totalCount;
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+            currentDailyProgress.completedCount = completed;
+            currentDailyProgress.completionPercentage = percentage;
+
+            document.getElementById('daily-percentage').textContent = `${percentage}%`;
+
+            // Update motivational message
+            const motivationalMessageElement = document.getElementById('motivational-message');
+            if (percentage === 100) {
+                motivationalMessageElement.textContent = 'رائع! لقد أكملت جميع مهامك اليومية! 🌟';
+                motivationalMessageElement.classList.remove('text-amber-600');
+                motivationalMessageElement.classList.add('text-teal-600');
+            } else if (percentage >= 75) {
+                motivationalMessageElement.textContent = 'أداء ممتاز! استمر في التقدم. 💪';
+                motivationalMessageElement.classList.remove('text-teal-600');
+                motivationalMessageElement.classList.add('text-amber-600');
+            } else if (percentage > 0) {
+                motivationalMessageElement.textContent = 'كل خطوة مهمة! تابع عملك لتحقيق المزيد. ✨';
+                motivationalMessageElement.classList.remove('text-teal-600');
+                motivationalMessageElement.classList.add('text-amber-600');
+            } else {
+                motivationalMessageElement.textContent = 'لنبدأ يومًا جديدًا مليئًا بالإنتاجية! 💡';
+                motivationalMessageElement.classList.remove('text-teal-600');
+                motivationalMessageElement.classList.add('text-amber-600');
+            }
+
+
+            // Update chart dataset
+            const nonCompletedTasksDuration = learningDataDailyTasks
+                .filter(task => !currentDailyProgress.tasks.find(t => t.id === task.id)?.completed)
+                .reduce((sum, task) => sum + task.duration, 0);
+
+            const completedTasksDuration = learningDataDailyTasks
+                .filter(task => currentDailyProgress.tasks.find(t => t.id === task.id)?.completed)
+                .reduce((sum, task) => sum + task.duration, 0);
+
+            timeAllocationChartInstance.data.labels = ['وقت مكتمل', 'وقت متبقي'];
+            timeAllocationChartInstance.data.datasets[0].data = [completedTasksDuration, nonCompletedTasksDuration];
+            timeAllocationChartInstance.data.datasets[0].backgroundColor = ['#10b981', '#f59e0b']; // green for completed, amber for remaining
+            timeAllocationChartInstance.update();
+        }
+
+        function resetDailyTasks() {
+            currentDailyProgress.date = getTodayDateString();
+            currentDailyProgress.tasks = learningDataDailyTasks.map(task => ({ id: task.id, completed: false }));
+            saveToLocalStorage('currentDailyProgress', currentDailyProgress);
+            renderDailyTasks(); // Re-render to show checkboxes as unchecked
+            calculateDailyCompletion(); // Reset percentage display
+        }
+
+        function aggregateDailyLog(pastDate) {
+            if (learningDataDailyTasks.length > 0) {
+                dailyCompletionHistory.push({
+                    date: pastDate,
+                    percentage: currentDailyProgress.completionPercentage,
+                    completedCount: currentDailyProgress.completedCount,
+                    totalCount: currentDailyProgress.totalCount
+                });
+                saveToLocalStorage('dailyCompletionHistory', dailyCompletionHistory);
+            }
+        }
+
+        function aggregateWeeklyLog(pastDate) {
+            const startOfWeek = getStartOfWeek(pastDate);
+            const weekNumber = getWeekNumber(pastDate);
+            const existingWeekIndex = weeklyCompletionHistory.findIndex(log => log.week === weekNumber);
+
+            const weekDailyLogs = dailyCompletionHistory.filter(log => {
+                const logDate = new Date(log.date);
+                return logDate >= startOfWeek && logDate <= pastDate;
+            });
+
+            if (weekDailyLogs.length > 0) {
+                const totalPercentage = weekDailyLogs.reduce((sum, log) => sum + log.percentage, 0);
+                const avgPercentage = Math.round(totalPercentage / weekDailyLogs.length);
+
+                const newWeeklyLog = {
+                    week: weekNumber,
+                    startDate: getTodayDateString(startOfWeek),
+                    endDate: getTodayDateString(pastDate),
+                    avgPercentage: avgPercentage,
+                    dailyLogs: weekDailyLogs.map(log => ({ date: log.date, percentage: log.percentage })) // Store summarized daily logs
+                };
+
+                if (existingWeekIndex !== -1) {
+                    weeklyCompletionHistory[existingWeekIndex] = newWeeklyLog;
+                } else {
+                    weeklyCompletionHistory.push(newWeeklyLog);
+                }
+                saveToLocalStorage('weeklyCompletionHistory', weeklyCompletionHistory);
+            }
+        }
+
+        function aggregateMonthlyLog(pastDate) {
+            const monthYear = getMonthYearString(pastDate);
+            const existingMonthIndex = monthlyCompletionHistory.findIndex(log => log.month === monthYear);
+
+            const monthWeeklyLogs = weeklyCompletionHistory.filter(log => {
+                const logEndDate = new Date(log.endDate);
+                return getMonthYearString(logEndDate) === monthYear;
+            });
+
+            if (monthWeeklyLogs.length > 0) {
+                const totalPercentage = monthWeeklyLogs.reduce((sum, log) => sum + log.avgPercentage, 0);
+                const avgPercentage = Math.round(totalPercentage / monthWeeklyLogs.length);
+
+                const newMonthlyLog = {
+                    month: monthYear,
+                    avgPercentage: avgPercentage,
+                    weeklyLogs: monthWeeklyLogs.map(log => ({ week: log.week, avgPercentage: log.avgPercentage }))
+                };
+
+                if (existingMonthIndex !== -1) {
+                    monthlyCompletionHistory[existingMonthIndex] = newMonthlyLog;
+                } else {
+                    monthlyCompletionHistory.push(newMonthlyLog);
+                }
+                saveToLocalStorage('monthlyCompletionHistory', monthlyCompletionHistory);
+            }
+        }
+
+        function aggregateYearlyLog(pastDate) {
+            const year = getYearString(pastDate);
+            const existingYearIndex = yearlyCompletionHistory.findIndex(log => log.year === year);
+
+            const yearMonthlyLogs = monthlyCompletionHistory.filter(log => {
+                const logMonthStart = new Date(log.month + '-01');
+                return getYearString(logMonthStart) === year;
+            });
+
+            if (yearMonthlyLogs.length > 0) {
+                const totalPercentage = yearMonthlyLogs.reduce((sum, log) => sum + log.avgPercentage, 0);
+                const avgPercentage = Math.round(totalPercentage / yearMonthlyLogs.length);
+
+                const newYearlyLog = {
+                    year: year,
+                    avgPercentage: avgPercentage,
+                    monthlyLogs: yearMonthlyLogs.map(log => ({ month: log.month, avgPercentage: log.avgPercentage }))
+                };
+
+                if (existingYearIndex !== -1) {
+                    yearlyCompletionHistory[existingYearIndex] = newYearlyLog;
+                } else {
+                    yearlyCompletionHistory.push(newYearlyLog);
+                }
+                saveToLocalStorage('yearlyCompletionHistory', yearlyCompletionHistory);
+            }
+        }
+
+        // --- LLM Integration ---
+        async function callGeminiAPIForPlan(prompt, schema) {
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = {
+                contents: chatHistory,
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: schema
+                }
+            };
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            let retries = 0;
+            const maxRetries = 5;
+            const baseDelay = 1000; // 1 second
+
+            while (retries < maxRetries) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const json = result.candidates[0].content.parts[0].text;
+                        const parsedJson = JSON.parse(json);
+                        return parsedJson;
+                    } else {
+                        throw new Error("Invalid response structure from Gemini API");
+                    }
+                } catch (error) {
+                    retries++;
+                    const delay = baseDelay * Math.pow(2, retries - 1);
+                    if (retries < maxRetries) {
+                        await new Promise(res => setTimeout(res, delay));
+                    } else {
+                        console.error("Max retries reached. Failed to call Gemini API:", error);
+                        throw error;
+                    }
+                }
+            }
+            throw new Error("Failed to call Gemini API after multiple retries.");
+        }
+
+
+        async function evaluateAndGenerateMonthlyPlan() {
+            const aiMonthlyPlanSection = document.getElementById('ai-monthly-plan');
+            const monthlyEvaluationSummary = document.getElementById('monthly-evaluation-summary');
+            const suggestedPlanDisplay = document.getElementById('suggested-plan-display');
+            const suggestedDailyTasksList = document.getElementById('suggested-daily-tasks-list');
+            const aiPlanError = document.getElementById('ai-plan-error');
+            const applyNewMonthlyPlanBtn = document.getElementById('apply-new-monthly-plan');
+
+            aiMonthlyPlanSection.classList.remove('hidden');
+            suggestedPlanDisplay.classList.add('hidden');
+            aiPlanError.classList.add('hidden');
+            monthlyEvaluationSummary.innerHTML = '<p class="text-xl font-semibold mb-2">جارٍ تقييم الشهر السابق وتوليد خطة جديدة...</p><div class="loading-spinner mx-auto"></div>';
+
+            isGeneratingPlan = true;
+            applyNewMonthlyPlanBtn.disabled = true;
+
+            try {
+                const now = new Date();
+                const currentMonthString = getMonthYearString(now);
+                const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const previousMonthString = getMonthYearString(previousMonthDate);
+                const lastMonthLog = monthlyCompletionHistory.find(log => log.month === previousMonthString);
+                
+                let performanceDescription = "";
+                let suggestedFocus = "";
+
+                if (lastMonthLog) {
+                    const avgPercentage = lastMonthLog.avgPercentage;
+                    if (avgPercentage >= 80) {
+                        performanceDescription = `لقد حققت متوسط إنجاز ممتاز بنسبة ${avgPercentage}% الشهر الماضي. رائع!`;
+                        suggestedFocus = "الآن هو الوقت المناسب للتوسع في مواضيع متقدمة أو البدء بمشروع أكثر تعقيدًا في مجال الـ IT واللغة الإنجليزية.";
+                    } else if (avgPercentage >= 50) {
+                        performanceDescription = `لقد حققت متوسط إنجاز جيد بنسبة ${avgPercentage}% الشهر الماضي. حافظ على الزخم!`;
+                        suggestedFocus = "يمكنك التركيز على تعزيز الأساسيات التي تعلمتها أو استكشاف جوانب جديدة في مواضيعك الحالية لزيادة الفهم.";
+                    } else {
+                        performanceDescription = `متوسط إنجازك كان ${avgPercentage}% الشهر الماضي. لا بأس، التعلم رحلة!`;
+                        suggestedFocus = "لتحقيق تقدم أفضل، ركز على بناء الاستمرارية في الأساسيات. قد تحتاج إلى مراجعة بعض المفاهيم أو تبسيط مهامك اليومية قليلاً.";
+                    }
+                } else {
+                    performanceDescription = "لا يوجد سجل إنجازات للشهر الماضي. هيا نبدأ بقوة هذا الشهر!";
+                    suggestedFocus = "هذه خطتك الأولى، فلنركز على بناء أساس قوي في البرمجة واللغة الإنجليزية.";
+                }
+
+                monthlyEvaluationSummary.innerHTML = `
+                    <p class="text-xl font-semibold mb-4 text-teal-800">${performanceDescription}</p>
+                    <p class="text-lg text-stone-700">${suggestedFocus}</p>
+                    <p class="text-stone-600 mt-4">جارٍ توليد الخطة اليومية المقترحة لشهر ${now.toLocaleDateString('ar', { month: 'long', year: 'numeric' })} بواسطة الذكاء الاصطناعي...</p>
+                    <div class="loading-spinner mx-auto mt-4"></div>
+                `;
+
+                const llmPrompt = `أنت مساعد تعليمي متخصص. بناءً على الوصف التالي لأداء الطالب: "${performanceDescription}. ${suggestedFocus}". ومهامهم اليومية الحالية: ${JSON.stringify(learningDataDailyTasks)}.
+                يرجى اقتراح خطة يومية تعليمية جديدة لخمسة أيام في الأسبوع (من السبت إلى الخميس)، مع 5 مهام يومية متنوعة. ركز على التوازن بين تعلم الـ IT (Python, CS Basics, Web Dev) واللغة الإنجليزية (قراءة، استماع، كلمات).
+                يجب أن يكون لكل مهمة:
+                - id (سلسلة فريدة، مثال: 'ai-task-1')
+                - task (وصف المهمة باللغة العربية)
+                - duration (المدة بالدقائق، رقم)
+                - icon (رمز تعبيري مناسب، مثال: '📚', '🐍')
+                - resources (مصفوفة من كائنات، كل كائن له 'name' و 'url'). يجب أن تكون الروابط واقعية وعملية (مثل روابط SoloLearn, HackerRank, YouTube channels).
+                أضف موارد جديدة ومناسبة إذا لزم الأمر.
+                يجب أن يكون الناتج مصفوفة JSON من هذه المهام، على سبيل المثال:
+                [
+                    {
+                        "id": "ai-task-1",
+                        "task": "مراجعة قواعد بايثون المتقدمة",
+                        "duration": 45,
+                        "icon": "🐍",
+                        "resources": [
+                            { "name": "SoloLearn Python", "url": "https://www.sololearn.com/Course/Python/" }
+                        ]
+                    }
+                ]
+                يرجى التأكد من أن جميع الروابط صالحة وعملية وتناسب المستوى المقترح.`;
+
+                const planSchema = {
+                    type: "ARRAY",
+                    items: {
+                        type: "OBJECT",
+                        properties: {
+                            "id": { "type": "STRING" },
+                            "task": { "type": "STRING" },
+                            "duration": { "type": "NUMBER" },
+                            "icon": { "type": "STRING" },
+                            "resources": {
+                                "type": "ARRAY",
+                                "items": {
+                                    type: "OBJECT",
+                                    properties: {
+                                        "name": { "type": "STRING" },
+                                        "url": { "type": "STRING" }
+                                    },
+                                    "propertyOrdering": ["name", "url"]
+                                }
+                            }
+                        },
+                        "propertyOrdering": ["id", "task", "duration", "icon", "resources"]
+                    }
+                };
+
+                const generatedPlan = await callGeminiAPIForPlan(llmPrompt, planSchema);
+                llmGeneratedDailyTasks = generatedPlan;
+
+                suggestedDailyTasksList.innerHTML = '';
+                llmGeneratedDailyTasks.forEach(task => {
+                    const taskElement = document.createElement('div');
+                    taskElement.className = 'bg-stone-50 p-4 rounded-lg flex items-start';
+                    taskElement.innerHTML = `
+                        <span class="text-2xl mr-4">${task.icon}</span>
+                        <div class="flex-grow">
+                            <p class="font-bold text-stone-700">${task.task} (${task.duration} دقيقة)</p>
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                ${task.resources ? task.resources.map(res => `<a href="${res.url}" target="_blank" class="text-xs px-2 py-1 bg-teal-100 text-teal-700 rounded-md hover:bg-teal-200 transition-colors duration-200">${res.name}</a>`).join('') : ''}
+                            </div>
+                        </div>
+                    `;
+                    suggestedDailyTasksList.appendChild(taskElement);
+                });
+
+                monthlyEvaluationSummary.innerHTML = `
+                    <p class="text-xl font-semibold mb-4 text-teal-800">${performanceDescription}</p>
+                    <p class="text-lg text-stone-700">${suggestedFocus}</p>
+                `;
+                suggestedPlanDisplay.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Error generating monthly plan:", error);
+                aiPlanError.classList.remove('hidden');
+                monthlyEvaluationSummary.innerHTML = `
+                    <p class="text-xl font-semibold mb-2 text-red-600">فشل التقييم الشهري أو توليد الخطة.</p>
+                    <p class="text-stone-700">الرجاء التحقق من اتصالك بالإنترنت أو إعادة المحاولة لاحقاً.</p>
+                `;
+            } finally {
+                isGeneratingPlan = false;
+                applyNewMonthlyPlanBtn.disabled = false;
+            }
+        }
+
+        function applyNewMonthlyPlan() {
+            if (llmGeneratedDailyTasks.length > 0) {
+                learningDataDailyTasks = llmGeneratedDailyTasks;
+                saveToLocalStorage('learningDataDailyTasks', learningDataDailyTasks); // Save the new plan
+                
+                // Reset current daily progress based on the new tasks
+                currentDailyProgress.tasks = learningDataDailyTasks.map(task => ({ id: task.id, completed: false }));
+                currentDailyProgress.totalCount = learningDataDailyTasks.length;
+                saveToLocalStorage('currentDailyProgress', currentDailyProgress);
+
+                // Re-render daily tasks and update chart
+                renderDailyTasks();
+                calculateDailyCompletion();
+                
+                document.getElementById('ai-monthly-plan').classList.add('hidden'); // Hide the AI section after applying
+                customAlert('تم بنجاح', 'تم تطبيق الخطة الشهرية الجديدة بنجاح!');
+            } else {
+                customAlert('تنبيه', 'لا توجد خطة جديدة لتطبيقها بعد.');
+            }
+        }
+
+
+        async function handleDailyResetAndAggregation() {
+            const now = new Date();
+            const resetHour = 6; // 6 AM local time (acting as Iraq time for client-side SPA)
+            const todayDateString = getTodayDateString(now);
+
+            // Load last stored daily progress
+            const storedDailyProgress = loadFromLocalStorage('currentDailyProgress', null);
+            let lastProgressDate = storedDailyProgress ? storedDailyProgress.date : null;
+
+            // Determine if a reset is needed
+            const isNewDay = !lastProgressDate || lastProgressDate !== todayDateString;
+            const isPastResetHour = now.getHours() >= resetHour;
+            const shouldReset = isNewDay && isPastResetHour;
+
+            if (shouldReset) {
+                // If there was previous day's progress, aggregate it before resetting
+                if (storedDailyProgress && storedDailyProgress.date) {
+                    currentDailyProgress = storedDailyProgress; // Use the *stored* progress for aggregation
+                    aggregateDailyLog(storedDailyProgress.date);
+
+                    const pastAggDate = new Date(storedDailyProgress.date);
+
+                    // Check for weekly/monthly/yearly aggregation triggers
+                    if (pastAggDate.getDay() === 6) { // 6 for Saturday
+                        aggregateWeeklyLog(pastAggDate);
+                    }
+                    if (pastAggDate.getDate() === new Date(pastAggDate.getFullYear(), pastAggDate.getMonth() + 1, 0).getDate()) {
+                        aggregateMonthlyLog(pastAggDate);
+                    }
+                    if (pastAggDate.getMonth() === 11 && pastAggDate.getDate() === 31) { // Month 11 is December
+                        aggregateYearlyLog(pastAggDate);
+                    }
+                }
+                
+                // Now reset for the current day
+                resetDailyTasks();
+                document.getElementById('reset-status').classList.remove('hidden'); // Show reset message
+                setTimeout(() => document.getElementById('reset-status').classList.add('hidden'), 5000); // Hide after 5 seconds
+
+                // --- Monthly AI Plan Generation Trigger ---
+                // Trigger AI plan generation only if it's the 1st day of the month and past resetHour
+                if (now.getDate() === 1 && now.getHours() >= resetHour) {
+                    await evaluateAndGenerateMonthlyPlan();
+                }
+
+                // --- Weekly Review Trigger (e.g., Sunday morning) ---
+                // Trigger weekly review on Sunday if last reviewed week is older than the last aggregated week
+                const lastAggregatedWeekNumber = getWeekNumber(new Date(lastProgressDate || todayDateString)); // Use lastProgressDate if available, else today
+                const lastReviewedWeekNumber = loadFromLocalStorage('lastWeeklyReviewDisplayedWeek', null);
+
+                // Only show weekly review if it's Sunday and it hasn't been reviewed for this week yet
+                if (now.getDay() === 0 && now.getHours() >= resetHour && lastAggregatedWeekNumber !== lastReviewedWeekNumber) { // 0 for Sunday
+                    await displayWeeklyReviewSummary();
+                }
+
+            } else {
+                // It's the same day or before reset hour, load previous progress
+                if (storedDailyProgress) {
+                    currentDailyProgress = storedDailyProgress;
+                }
+                renderDailyTasks();
+                calculateDailyCompletion();
+            }
+        }
+
+        // --- Render Functions ---
+
+        function renderDailyTasks() {
+            const dailyTasksList = document.getElementById('daily-tasks-list');
+            dailyTasksList.innerHTML = ''; // Clear existing tasks
+
+            learningDataDailyTasks.forEach((item) => {
+                const taskProgress = currentDailyProgress.tasks.find(t => t.id === item.id);
+                const isCompleted = taskProgress ? taskProgress.completed : false;
+
+                const taskElement = document.createElement('div');
+                // Apply 'line-through' and 'opacity' directly to taskElement for visual consistency
+                taskElement.className = `task-item bg-stone-50 hover:bg-stone-100 p-4 rounded-lg transition-all duration-300 flex items-center ${isCompleted ? 'line-through text-gray-500 opacity-60' : ''}`;
+                taskElement.innerHTML = `
+                    <input type="checkbox" id="task-${item.id}" class="hidden" ${isCompleted ? 'checked' : ''}>
+                    <label for="task-${item.id}" class="flex items-start cursor-pointer w-full">
+                        <span class="icon text-2xl mr-4">${item.icon}</span>
+                        <div class="flex-grow task-text">
+                            <div class="flex items-center space-x-2 space-x-reverse">
+                                <span class="font-bold text-stone-700">${item.task}</span>
+                                <p class="text-sm text-stone-500">${item.duration} دقيقة</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                ${item.resources ? item.resources.map(res => `<a href="${res.url}" target="_blank" class="text-xs px-2 py-1 bg-teal-100 text-teal-700 rounded-md hover:bg-teal-200 transition-colors duration-200">${res.name}</a>`).join('') : ''}
+                            </div>
+                        </div>
+                        <div class="w-6 h-6 border-2 ${isCompleted ? 'border-teal-500 bg-teal-500' : 'border-stone-300'} rounded-full flex items-center justify-center checkmark-container flex-shrink-0">
+                            <svg class="w-4 h-4 text-white ${isCompleted ? '' : 'hidden'}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                    </label>
+                `;
+                dailyTasksList.appendChild(taskElement);
+
+                const checkbox = taskElement.querySelector(`#task-${item.id}`);
+                // Capture these references once, when the taskElement is rendered
+                // These queries are relative to taskElement, ensuring they are found correctly.
+                const checkmarkContainer = taskElement.querySelector('.checkmark-container');
+                const checkmarkSvg = checkmarkContainer ? checkmarkContainer.querySelector('svg') : null;
+
+                checkbox.addEventListener('change', (e) => {
+                    const taskId = item.id;
+                    const completed = e.target.checked;
+
+                    // Update currentDailyProgress state
+                    const taskIndex = currentDailyProgress.tasks.findIndex(t => t.id === taskId);
+                    if (taskIndex !== -1) {
+                        currentDailyProgress.tasks[taskIndex].completed = completed;
+                        saveToLocalStorage('currentDailyProgress', currentDailyProgress);
+                        calculateDailyCompletion();
+                    }
+
+                    if (checkmarkContainer && checkmarkSvg) { // Now these are directly captured references, not queried within the event
+                        if (completed) {
+                            checkmarkContainer.classList.add('bg-teal-500', 'border-teal-500');
+                            checkmarkSvg.classList.remove('hidden');
+                            taskElement.classList.add('line-through', 'text-gray-500', 'opacity-60');
+                        } else {
+                            checkmarkContainer.classList.remove('bg-teal-500', 'border-teal-500');
+                            checkmarkSvg.classList.add('hidden');
+                            taskElement.classList.remove('line-through', 'text-gray-500', 'opacity-60');
+                        }
+                    } else {
+                        // This specific error message should now be very rare or indicate a structural problem
+                        console.error('Critical Error: Checkmark elements missing for task:', taskId, 'after render.');
+                    }
+                });
+            });
+        }
+
+        function renderHistoricalProgress() {
+            const dailyLogDiv = document.getElementById('daily-progress-log');
+            const weeklyLogDiv = document.getElementById('weekly-progress-log');
+            const monthlyLogDiv = document.getElementById('monthly-progress-log');
+
+            dailyLogDiv.innerHTML = '';
+            if (dailyCompletionHistory.length === 0) {
+                dailyLogDiv.innerHTML = '<p class="text-stone-500">لا يوجد سجل يومي بعد.</p>';
+            } else {
+                dailyCompletionHistory.slice().reverse().forEach(log => {
+                    const p = document.createElement('p');
+                    p.className = 'text-stone-700 text-sm';
+                    p.textContent = `تاريخ: ${log.date} - إنجاز: ${log.percentage}% (${log.completedCount}/${log.totalCount})`;
+                    dailyLogDiv.appendChild(p);
+                });
+            }
+
+            weeklyLogDiv.innerHTML = '';
+            if (weeklyCompletionHistory.length === 0) {
+                weeklyLogDiv.innerHTML = '<p class="text-stone-500">لا يوجد سجل أسبوعي بعد.</p>';
+            } else {
+                weeklyCompletionHistory.slice().reverse().forEach(log => {
+                    const p = document.createElement('p');
+                    p.className = 'text-stone-700 text-sm';
+                    p.textContent = `الأسبوع: ${log.week} - (${log.startDate} إلى ${log.endDate}) - متوسط إنجاز: ${log.avgPercentage}%`;
+                    weeklyLogDiv.appendChild(p);
+                });
+            }
+
+            monthlyLogDiv.innerHTML = '';
+            if (monthlyCompletionHistory.length === 0) {
+                monthlyLogDiv.innerHTML = '<p class="text-stone-500">لا يوجد سجل شهري بعد.</p>';
+            } else {
+                monthlyCompletionHistory.slice().reverse().forEach(log => {
+                    const p = document.createElement('p');
+                    p.className = 'text-stone-700 text-sm';
+                    p.textContent = `الشهر: ${log.month} - متوسط إنجاز: ${log.avgPercentage}%`;
+                    monthlyLogDiv.appendChild(p);
+                });
+            }
+        }
+
+        async function displayWeeklyReviewSummary() {
+            const weeklyReviewSection = document.getElementById('weekly-review-section');
+            const weeklyReviewSummaryContent = document.getElementById('weekly-review-summary-content');
+            const hideWeeklyReviewBtn = document.getElementById('hide-weekly-review');
+
+            weeklyReviewSection.classList.remove('hidden');
+            weeklyReviewSummaryContent.innerHTML = '<p class="text-xl font-semibold mb-2">جارٍ تحميل ملخص الأسبوع...</p><div class="loading-spinner mx-auto"></div>';
+
+            try {
+                const now = new Date();
+                const currentWeekNumber = getWeekNumber(now); // This is the week we just entered
+                const previousWeekDate = new Date(now);
+                previousWeekDate.setDate(now.getDate() - 7); // Go back 7 days to get a date in the previous week
+                const previousWeekNumber = getWeekNumber(previousWeekDate);
+
+                const lastWeekLog = weeklyCompletionHistory.find(log => log.week === previousWeekNumber);
+
+                if (lastWeekLog) {
+                    const avgPercentage = lastWeekLog.avgPercentage;
+                    let summaryText = `
+                        <p class="text-xl font-semibold mb-4 text-teal-800">ملخص أداء الأسبوع الماضي (${lastWeekLog.startDate} - ${lastWeekLog.endDate}):</p>
+                        <p class="text-lg text-stone-700">لقد حققت متوسط إنجاز يومي بنسبة <span class="text-amber-600 font-bold">${avgPercentage}%</span>.</p>
+                    `;
+                    if (avgPercentage >= 80) {
+                        summaryText += `<p class="text-lg text-stone-700 mt-2">أداء ممتاز! استمر على هذا المنوال وحاول تحدي نفسك أكثر هذا الأسبوع.</p>`;
+                    } else if (avgPercentage >= 50) {
+                        summaryText += `<p class="text-lg text-stone-700 mt-2">أداء جيد! يمكنك مراجعة أيام الأسبوع التي كان فيها الإنجاز أقل لتعزيز تركيزك.</p>`;
+                    } else {
+                        summaryText += `<p class="text-lg text-stone-700 mt-2">يتطلب هذا الأسبوع بعض التركيز الإضافي. لنراجع التحديات ونضع خطة لتحسين الاستمرارية.</p>`;
+                    }
+                    weeklyReviewSummaryContent.innerHTML = summaryText;
+                    saveToLocalStorage('lastWeeklyReviewDisplayedWeek', currentWeekNumber); // Mark this week as reviewed
+                } else {
+                    weeklyReviewSummaryContent.innerHTML = '<p class="text-xl font-semibold text-stone-700">لا يوجد سجل إنجازات كامل للأسبوع الماضي للمراجعة بعد.</p>';
+                    saveToLocalStorage('lastWeeklyReviewDisplayedWeek', currentWeekNumber); // Still mark to avoid re-triggering this week
+                }
+
+            } catch (error) {
+                console.error("Error displaying weekly review summary:", error);
+                weeklyReviewSummaryContent.innerHTML = '<p class="text-xl font-semibold text-red-600">عذراً، حدث خطأ أثناء تحميل ملخص الأسبوع.</p>';
+            }
+
+            hideWeeklyReviewBtn.onclick = () => {
+                weeklyReviewSection.classList.add('hidden');
+            };
+        }
+
+
+        // --- Initialize on DOMContentLoaded ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            const weeklyTasksList = document.getElementById('weekly-tasks-list');
+            const monthlyTasksList = document.getElementById('monthly-tasks-list');
+            const resourcesList = document.getElementById('resources-list');
+            
+            // Notes Section Elements
+            const newNoteInput = document.getElementById('new-note-input');
+            const addNewNoteBtn = document.getElementById('add-new-note-btn');
+            const allNotesDisplay = document.getElementById('all-notes-display');
+
+            // Skills & Goals Elements
+            const newSkillInput = document.getElementById('new-skill-input');
+            const newSkillProficiency = document.getElementById('new-skill-proficiency');
+            const addSkillBtn = document.getElementById('add-skill-btn');
+            const skillsListDisplay = document.getElementById('skills-list-display');
+            const longTermGoalsInput = document.getElementById('long-term-goals-input');
+            const saveLongTermGoalsBtn = document.getElementById('save-long-term-goals-btn');
+            const longTermGoalsDisplay = document.getElementById('long-term-goals-display');
+
+
+            const vocabWordInput = document.getElementById('vocab-word');
+            const vocabMeaningInput = document.getElementById('vocab-meaning');
+            const vocabNotesInput = document.getElementById('vocab-notes');
+            const addVocabBtn = document.getElementById('add-vocab');
+            const vocabularyDisplay = document.getElementById('vocabulary-display');
+            const applyNewMonthlyPlanBtn = document.getElementById('apply-new-monthly-plan');
+            const hideWeeklyReviewBtn = document.getElementById('hide-weekly-review');
+
+
+            // Initialize Chart.js
+            const ctx = document.getElementById('timeAllocationChart').getContext('2d');
+            timeAllocationChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['وقت مكتمل', 'وقت متبقي'],
+                    datasets: [{
+                        label: 'توزيع الوقت (دقائق)',
+                        data: [0, learningDataDailyTasks.reduce((sum, task) => sum + task.duration, 0)],
+                        backgroundColor: ['#10b981', '#f59e0b'],
+                        borderColor: '#ffffff',
+                        borderWidth: 4,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed !== null) {
+                                        label += context.parsed + ' دقيقة';
+                                    }
+                                    return label;
+                                }
+                            },
+                            bodyFont: {
+                                family: 'Tajawal'
+                            },
+                            titleFont: {
+                                family: 'Tajawal'
+                            }
+                        }
+                    },
+                    cutout: '60%'
+                }
+            });
+
+            // Load all historical data
+            dailyCompletionHistory = loadFromLocalStorage('dailyCompletionHistory', []);
+            weeklyCompletionHistory = loadFromLocalStorage('weeklyCompletionHistory', []);
+            monthlyCompletionHistory = loadFromLocalStorage('monthlyCompletionHistory', []);
+            yearlyCompletionHistory = loadFromLocalStorage('yearlyCompletionHistory', []);
+
+            // Handle daily reset and aggregation checks (and monthly AI plan generation, and weekly review)
+            await handleDailyResetAndAggregation(); // Use await here
+
+            renderHistoricalProgress();
+
+
+            // Render Weekly Tasks
+            learningData.weeklyTasks.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.className = 'flex items-start bg-stone-50 p-3 rounded-lg flex-col'; // Changed to flex-col to stack task and resources
+                listItem.innerHTML = `
+                    <div class="flex items-center w-full">
+                        <span class="text-2xl mr-4 flex-shrink-0">${item.icon}</span>
+                        <div>
+                            <p class="font-bold text-stone-700">${item.task}</p>
+                            <p class="text-sm text-stone-500">${item.notes}</p>
+                        </div>
+                    </div>
+                    ${item.resources && item.resources.length > 0 ? `
+                        <div class="flex flex-wrap gap-2 mt-2 mr-10 w-full">
+                            ${item.resources.map(res => `<a href="${res.url}" target="_blank" class="text-xs px-2 py-1 bg-teal-100 text-teal-700 rounded-md hover:bg-teal-200 transition-colors duration-200">${res.name}</a>`).join('')}
+                        </div>
+                    ` : ''}
+                `;
+                weeklyTasksList.appendChild(listItem);
+            });
+
+            // Render Monthly Tasks
+            learningData.monthlyTasks.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.className = 'flex items-start bg-stone-50 p-3 rounded-lg';
+                listItem.innerHTML = `
+                    <span class="text-2xl mr-4">${item.icon}</span>
+                    <div>
+                        <p class="font-bold text-stone-700">${item.task}</p>
+                        <p class="text-sm text-stone-500">${item.notes}</p>
+                    </div>
+                `;
+                monthlyTasksList.appendChild(listItem);
+            });
+
+            // Render Resources (General Bank)
+            const staticResources = learningData.resources;
+
+            staticResources.forEach(resource => {
+                const resourceLink = document.createElement('a');
+                resourceLink.href = resource.url;
+                resourceLink.target = '_blank';
+                resourceLink.className = 'bg-white p-4 rounded-lg shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center justify-center text-center';
+                resourceLink.innerHTML = `
+                    <div class="text-2xl mb-2">${getCategoryIcon(resource.category)}</div>
+                    <p class="font-semibold text-sm text-stone-700">${resource.name}</p>
+                    ${resource.description ? `<p class="text-xs text-stone-500 mt-1">${resource.description}</p>` : ''}
+                `;
+                resourcesList.appendChild(resourceLink);
+            });
+
+            function getCategoryIcon(category) {
+                switch(category) {
+                    case 'English': return '🇬🇧';
+                    case 'CS': return '🎓';
+                    case 'Code': return '👨‍💻';
+                    case 'Tool': return '🛠️';
+                    case 'Practice': return '🎯';
+                    case 'Media': return '📺';
+                    default: return '🔗';
+                }
+            }
+
+            // --- Notes Section Logic (Individual Entries) ---
+            let allNotes = []; // Stores individual notes
+
+            function saveAllNotes() {
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('learning-plan-all-notes', JSON.stringify(allNotes));
+                } else {
+                    console.warn('localStorage is not available for notes.');
+                }
+            }
+
+            function loadAllNotes() {
+                if (typeof localStorage !== 'undefined') {
+                    const savedNotes = localStorage.getItem('learning-plan-all-notes');
+                    if (savedNotes) {
+                        allNotes = JSON.parse(savedNotes);
+                        renderAllNotes();
+                    }
+                }
+            }
+
+            function renderAllNotes() {
+                const allNotesDisplay = document.getElementById('all-notes-display');
+                allNotesDisplay.innerHTML = ''; // Clear existing notes
+
+                if (allNotes.length === 0) {
+                    allNotesDisplay.innerHTML = '<p class="text-stone-500 text-center">لا توجد ملاحظات محفوظة بعد.</p>';
+                    return;
+                }
+
+                // Display newest first
+                allNotes.slice().reverse().forEach((note) => {
+                    const noteElement = document.createElement('div');
+                    noteElement.className = 'bg-stone-50 p-4 rounded-lg shadow-sm border border-stone-200';
+                    
+                    // Format timestamp
+                    const date = new Date(note.timestamp);
+                    const formattedDate = date.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+                    const formattedTime = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+                    // Auto-detect links
+                    const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+                    const formattedContent = note.content.replace(urlRegex, function(url) {
+                        return `<a href="${url}" target="_blank" class="text-blue-600 hover:underline">${url}</a>`;
+                    }).replace(/\n/g, '<br>'); // Preserve line breaks
+
+                    noteElement.innerHTML = `
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs text-stone-500">${formattedDate} - ${formattedTime}</span>
+                            <button class="delete-note-btn text-red-600 hover:text-red-800 transition-colors duration-200 text-sm" data-id="${note.id}">حذف</button>
+                        </div>
+                        <div class="text-stone-700 whitespace-pre-wrap">${formattedContent}</div>
+                    `;
+                    allNotesDisplay.appendChild(noteElement);
+                });
+
+                // Attach delete event listeners
+                allNotesDisplay.querySelectorAll('.delete-note-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const noteIdToDelete = e.target.dataset.id;
+                        allNotes = allNotes.filter(note => note.id !== noteIdToDelete);
+                        saveAllNotes();
+                        renderAllNotes();
+                    });
+                });
+            }
+
+            function addNewNote() {
+                const newNoteInput = document.getElementById('new-note-input');
+                const content = newNoteInput.value.trim();
+
+                if (content) {
+                    const newNote = {
+                        id: crypto.randomUUID(), // Unique ID for each note
+                        content: content,
+                        timestamp: new Date().toISOString()
+                    };
+                    allNotes.push(newNote);
+                    saveAllNotes();
+                    newNoteInput.value = ''; // Clear input after saving
+                    renderAllNotes();
+                } else {
+                    customAlert('تنبيه', 'الرجاء كتابة ملاحظة قبل الإضافة.');
+                }
+            }
+            // Hook up the add new note button
+            addNewNoteBtn.addEventListener('click', addNewNote);
+            // Load and render all notes on startup
+            loadAllNotes();
+
+
+            // --- Skills & Goals Section Logic ---
+            function saveMySkills() {
+                saveToLocalStorage('mySkills', mySkills);
+            }
+
+            function loadMySkills() {
+                mySkills = loadFromLocalStorage('mySkills', []);
+                renderMySkills();
+            }
+
+            function renderMySkills() {
+                skillsListDisplay.innerHTML = '';
+                if (mySkills.length === 0) {
+                    skillsListDisplay.innerHTML = '<p class="text-stone-500 text-center">لا توجد مهارات مضافة بعد.</p>';
+                    return;
+                }
+                mySkills.forEach(skill => {
+                    const skillElement = document.createElement('div');
+                    skillElement.className = 'flex items-center justify-between bg-stone-50 p-3 rounded-lg border border-stone-200';
+                    let proficiencyColor = '';
+                    switch (skill.proficiency) {
+                        case 'Not Started': proficiencyColor = 'text-red-500'; break;
+                        case 'Learning': proficiencyColor = 'text-amber-600'; break;
+                        case 'Proficient': proficiencyColor = 'text-teal-600'; break;
+                    }
+                    skillElement.innerHTML = `
+                        <div>
+                            <p class="font-bold text-stone-700">${skill.name}</p>
+                            <p class="text-sm ${proficiencyColor}">${skill.proficiency}</p>
+                        </div>
+                        <button class="delete-skill-btn text-red-600 hover:text-red-800 transition-colors duration-200 text-sm" data-id="${skill.id}">حذف</button>
+                    `;
+                    skillsListDisplay.appendChild(skillElement);
+                });
+
+                skillsListDisplay.querySelectorAll('.delete-skill-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const skillIdToDelete = e.target.dataset.id;
+                        mySkills = mySkills.filter(skill => skill.id !== skillIdToDelete);
+                        saveMySkills();
+                        renderMySkills();
+                    });
+                });
+            }
+
+            addSkillBtn.addEventListener('click', () => {
+                const skillName = newSkillInput.value.trim();
+                const proficiency = newSkillProficiency.value;
+                if (skillName) {
+                    mySkills.push({ id: crypto.randomUUID(), name: skillName, proficiency: proficiency });
+                    saveMySkills();
+                    renderMySkills();
+                    newSkillInput.value = '';
+                    newSkillProficiency.value = 'Not Started';
+                } else {
+                    customAlert('تنبيه', 'الرجاء إدخال اسم المهارة.');
+                }
+            });
+
+            function saveLongTermGoals() {
+                longTermGoals = longTermGoalsInput.value.trim();
+                saveToLocalStorage('longTermGoals', longTermGoals);
+                renderLongTermGoals();
+            }
+
+            function loadLongTermGoals() {
+                longTermGoals = loadFromLocalStorage('longTermGoals', '');
+                longTermGoalsInput.value = longTermGoals;
+                renderLongTermGoals();
+            }
+
+            function renderLongTermGoals() {
+                const text = longTermGoals;
+                const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+                const formattedText = text.replace(urlRegex, function(url) {
+                    let displayUrl = url;
+                    if (!/^https?:\/\//i.test(displayUrl)) {
+                        displayUrl = "http://" + displayUrl;
+                    }
+                    return `<a href="${url}" target="_blank" class="text-blue-600 hover:underline">${url}</a>`;
+                });
+                longTermGoalsDisplay.innerHTML = formattedText.replace(/\n/g, '<br>') || '<p class="text-stone-500">لا توجد أهداف محفوظة بعد.</p>';
+            }
+            saveLongTermGoalsBtn.addEventListener('click', saveLongTermGoals);
+            loadMySkills();
+            loadLongTermGoals();
+
+
+            // Vocabulary Repository Logic
+            let vocabulary = [];
+
+            function saveVocabulary() {
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('learning-plan-vocabulary', JSON.stringify(vocabulary));
+                } else {
+                    console.warn('localStorage is not available.');
+                }
+            }
+
+            function loadVocabulary() {
+                if (typeof localStorage !== 'undefined') {
+                    const savedVocab = localStorage.getItem('learning-plan-vocabulary');
+                    if (savedVocab) {
+                        vocabulary = JSON.parse(savedVocab);
+                        renderVocabulary();
+                    }
+                }
+            }
+
+            function renderVocabulary() {
+                vocabularyDisplay.innerHTML = '';
+                if (vocabulary.length === 0) {
+                    vocabularyDisplay.innerHTML = '<p class="text-stone-500 text-center col-span-full">لا توجد كلمات محفوظة بعد. ابدأ بإضافة بعض الكلمات!</p>';
+                    return;
+                }
+                vocabulary.forEach((item, index) => {
+                    const vocabCard = document.createElement('div');
+                    vocabCard.className = 'bg-stone-50 p-4 rounded-lg shadow-sm border border-stone-200';
+                    vocabCard.innerHTML = `
+                        <h4 class="font-bold text-teal-700 text-lg">${item.word}</h4>
+                        <p class="text-stone-700 mt-1">**المعنى:** ${item.meaning}</p>
+                        ${item.notes ? `<p class="text-stone-500 text-sm mt-1">**ملاحظات:** ${item.notes}</p>` : ''}
+                        <button class="delete-vocab-btn mt-3 text-sm text-red-600 hover:text-red-800 transition-colors duration-200" data-index="${index}">حذف</button>
+                    `;
+                    vocabularyDisplay.appendChild(vocabCard);
+                });
+                // Attach event listeners to new delete buttons
+                document.querySelectorAll('.delete-vocab-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const indexToDelete = parseInt(e.target.dataset.index);
+                        vocabulary.splice(indexToDelete, 1);
+                        saveVocabulary();
+                        renderVocabulary();
+                    });
+                });
+            }
+
+            addVocabBtn.addEventListener('click', () => {
+                const word = vocabWordInput.value.trim();
+                const meaning = vocabMeaningInput.value.trim();
+                const notes = vocabNotesInput.value.trim();
+
+                if (word && meaning) {
+                    vocabulary.push({ word, meaning, notes });
+                    saveVocabulary();
+                    renderVocabulary();
+                    vocabWordInput.value = '';
+                    vocabMeaningInput.value = '';
+                    vocabNotesInput.value = '';
+                } else {
+                    customAlert('تنبيه', 'الرجاء إدخال الكلمة والمعنى.');
+                }
+            });
+
+            loadVocabulary();
+
+            applyNewMonthlyPlanBtn.addEventListener('click', applyNewMonthlyPlan);
+
+            // Register service worker
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('/service-worker.js')
+                        .then(registration => {
+                            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                        })
+                        .catch(err => {
+                            console.log('ServiceWorker registration failed: ', err);
+                        });
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>
